@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEC-SHELL // Final OS Presentation</title>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;700&family=Orbitron:wght@400;700;900&display=swap"
+        rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/libs/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #020202;
+            --neon-blue: #00f3ff;
+            --neon-green: #00ff66;
+            --neon-red: #ff003c;
+            --neon-yellow: #fcee0a;
+            --neon-purple: #b026ff;
+            --text-main: #d1d5db;
+            --panel-bg: rgba(5, 10, 15, 0.85);
+            --panel-border: rgba(0, 243, 255, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Fira Code', monospace;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            perspective: 1500px;
+        }
+
+        /* --- Global CRT & Scanline Effects --- */
+        body::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 9998;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.95) 100%);
+            z-index: 9997;
+            pointer-events: none;
+        }
+
+        .hologram-scanline {
+            position: absolute;
+            width: 100%;
+            height: 10px;
+            background: rgba(0, 243, 255, 0.2);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.5);
+            opacity: 0.5;
+            z-index: 9996;
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scanline {
+            0% {
+                top: -10%;
+            }
+
+            100% {
+                top: 110%;
+            }
+        }
+
+        /* --- Boot Sequence Overlay --- */
+        #boot-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--neon-green);
+            font-size: 1.2rem;
+            transition: opacity 0.8s ease-out;
+            cursor: pointer;
+        }
+
+        .skip-hint {
+            position: absolute;
+            bottom: 2rem;
+            font-size: 0.9rem;
+            color: #555;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .radar {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 2px solid var(--neon-green);
+            position: relative;
+            margin-bottom: 2rem;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 255, 102, 0.2);
+        }
+
+        .radar::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50%;
+            height: 50%;
+            background: linear-gradient(45deg, rgba(0, 255, 102, 1) 0%, transparent 50%);
+            transform-origin: 0 0;
+            animation: radar-spin 2s linear infinite;
+        }
+
+        @keyframes radar-spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #boot-text {
+            text-align: left;
+            width: 600px;
+            height: 200px;
+            overflow: hidden;
+        }
+
+        /* --- Particle Canvas --- */
+        #particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        /* --- Presentation Container --- */
+        #presentation-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 1s;
+            z-index: 10;
+        }
+
+        /* --- Slides --- */
+        .slide {
+            position: absolute;
+            width: 92%;
+            height: 85%;
+            opacity: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            padding: 4rem 5rem;
+            box-shadow: 0 0 50px rgba(0, 243, 255, 0.1), inset 0 0 20px rgba(0, 243, 255, 0.05);
+            transform: translateZ(-800px) rotateX(10deg);
+            transition: all 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+            will-change: transform, opacity;
+            overflow-y: auto;
+        }
+
+        .slide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateZ(0) rotateX(0deg);
+            pointer-events: auto;
+        }
+
+        .slide.prev {
+            opacity: 0;
+            transform: translateZ(400px) rotateX(-10deg);
+        }
+
+        /* LOADING OVERLAY CSS */
+        .export-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 20000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: var(--neon-blue);
+        }
+
+        .export-overlay h2 {
+            font-family: 'Orbitron';
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            animation: pulse 1s infinite;
+        }
+
+        /* --- Typography & Animations --- */
+        h1,
+        h2 {
+            font-family: 'Orbitron', sans-serif;
+            text-transform: uppercase;
+        }
+
+        .glitch-title {
+            color: #fff;
+            font-size: 4rem;
+            position: relative;
+            display: inline-block;
+            text-shadow: 0 0 15px var(--neon-blue);
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: var(--neon-blue);
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 5px solid var(--neon-blue);
+            padding-left: 15px;
+        }
+
+        p,
+        li {
+            font-size: 1.3rem;
+            line-height: 1.7;
+            margin-bottom: 1rem;
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .slide li {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+
+        .slide.active li {
+            animation: decrypt 0.5s forwards ease-out;
+        }
+
+        .slide.active li:nth-child(1) {
+            animation-delay: 0.2s;
+        }
+
+        .slide.active li:nth-child(2) {
+            animation-delay: 0.4s;
+        }
+
+        .slide.active li:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+
+        .slide.active li:nth-child(4) {
+            animation-delay: 0.8s;
+        }
+
+        .slide.active li:nth-child(5) {
+            animation-delay: 1.0s;
+        }
+
+        @keyframes decrypt {
+            100% {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        li::before {
+            content: ">> ";
+            color: var(--neon-blue);
+            font-weight: bold;
+        }
+
+        .highlight {
+            color: var(--neon-green);
+            text-shadow: 0 0 8px rgba(0, 255, 102, 0.4);
+            font-weight: bold;
+        }
+
+        .alert {
+            color: var(--neon-red);
+            text-shadow: 0 0 8px rgba(255, 0, 60, 0.4);
+            font-weight: bold;
+        }
+
+        .warning {
+            color: var(--neon-yellow);
+            text-shadow: 0 0 8px rgba(252, 238, 10, 0.4);
+            font-weight: bold;
+        }
+
+        .cite {
+            font-size: 0.7rem;
+            color: #555;
+            vertical-align: super;
+            font-family: 'Orbitron';
+            margin-left: 4px;
+            border: 1px solid #333;
+            padding: 1px 4px;
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        /* --- Custom UI Elements --- */
+        .team-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .team-member {
+            background: rgba(0, 243, 255, 0.05);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            padding: 1rem 2rem;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1 1 auto;
+            justify-content: center;
+        }
+
+        .team-member::before {
+            content: "●";
+            color: var(--neon-green);
+            font-size: 0.8rem;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.2;
+            }
+        }
+
+        .c-structs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .code-box {
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #333;
+            border-top: 3px solid var(--neon-blue);
+            padding: 1.5rem;
+            border-radius: 4px;
+            flex: 1 1 250px;
+            font-size: 1.1rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .kw {
+            color: #ff7b72;
+        }
+
+        .ty {
+            color: #79c0ff;
+        }
+
+        .vr {
+            color: #d2a8ff;
+        }
+
+        .st {
+            color: #a5d6ff;
+        }
+
+        /* --- Navigation Controls --- */
+        #controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 3rem;
+            background: #050505;
+            border-top: 1px solid var(--neon-blue);
+            z-index: 9999;
+            position: relative;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            background: transparent;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem 1.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s ease-in-out;
+            border-radius: 3px;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--neon-blue);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-blue);
+            transform: translateY(-2px);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            border-color: #333;
+            color: #555;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-export {
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+        }
+
+        .btn-export:hover:not(:disabled) {
+            background: var(--neon-green);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-green);
+        }
+
+        #progress {
+            font-family: 'Orbitron';
+            font-size: 1.2rem;
+            color: var(--neon-green);
+            letter-spacing: 3px;
+            text-shadow: 0 0 5px var(--neon-green);
+            margin: 0 1rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="vignette"></div>
+    <div class="hologram-scanline"></div>
+    <canvas id="particles"></canvas>
+
+    <div class="export-overlay" id="exportOverlay">
+        <h2>PROCESSING EXPORT...</h2>
+        <p>Flattening 3D geometry and rendering high-resolution slides.</p>
+        <p>Do not close this window.</p>
+    </div>
+
+    <div id="boot-screen">
+        <div class="radar"></div>
+        <div id="boot-text"></div>
+        <div class="skip-hint">[ Click or Press Space to Skip ]</div>
+    </div>
+
+    <div id="presentation-container">
+
+        <section class="slide active">
+            <h1 class="glitch-title">SEC-SHELL // OS</h1>
+            <h3 style="color: #888; margin-bottom: 2rem; font-size: 1.2rem;">PHASE 2 DEPLOYMENT // CSCI 3510 // ADA
+                UNIVERSITY <span class="cite"></span></h3>
+            <p><strong>INSTRUCTOR:</strong> MR. UMID SULEYMANOV <span class="cite"></span></p>
+            <p style="margin-top: 2rem; color: var(--neon-blue);">AUTHORIZED OPERATIVES:</p>
+            <div class="team-grid">
+                <div class="team-member">RAFIG ASGARLI</div>
+                <div class="team-member">ISGANDAR JAFARLI</div>
+                <div class="team-member">JAMIL AKBEROV</div>
+                <div class="team-member">ELJAN AHMADOV</div>
+                <div class="team-member">KHAYYAM NAJAFLI</div>
+            </div>
+        </section>
+
+        <section class="slide">
+            <h2>SYSTEM VULNERABILITIES DETECTED</h2>
+            <p>Standard command-line interfaces present critical security risks in shared environments <span
+                    class="cite"></span>:</p>
+            <ul>
+                <li><span class="alert">UNRESTRICTED ACCESS:</span> Bash/Zsh grant users full execution privileges by
+                    default, allowing arbitrary process kills <span class="cite"></span>.</li>
+                <li><span class="alert">ZERO AUDITABILITY:</span> Standard shells lack persistent tracking <span
+                        class="cite"></span>. Incident forensics are severely compromised without an immutable log <span
+                        class="cite"></span>.</li>
+                <li><span class="alert">BINARY PRIVILEGE MODEL:</span> The native UNIX permissions model lacks
+                    intermediate privilege levels (User vs. Root) <span class="cite"></span>.</li>
+            </ul>
+        </section>
+
+        <section class="slide">
+            <h2>THE COUNTERMEASURE (OBJECTIVES)</h2>
+            <p>Deployment of a custom C-based shell engineered for absolute execution control <span
+                    class="cite"></span>.</p>
+            <ul>
+                <li><span class="highlight">COMMAND WHITELISTING:</span> Default Deny architecture. If the binary is not
+                    explicitly permitted, execution is aborted <span class="cite"></span>.</li>
+                <li><span class="highlight">RBAC PROTOCOL:</span> Role-Based Access Control enforcing dynamic command
+                    environments based on current user assignment <span class="cite"></span>.</li>
+                <li><span class="highlight">AUDIT LOGGING:</span> Persistent command audit log that records each command
+                    attempt, including timestamp and outcome <span class="cite"></span>.</li>
+            </ul>
+        </section>
+
+        <section class="slide">
+            <h2>SCOPE & BOUNDARIES</h2>
+            <p>To isolate core OS security paradigms, advanced scripting functionalities were intentionally excluded
+                <span class="cite"></span>:</p>
+            <div style="display:flex; gap: 2rem; margin-top: 1rem; flex-wrap:wrap;">
+                <div
+                    style="flex:1 1 300px; border: 1px solid var(--neon-green); padding: 1.5rem; background: rgba(0,255,102,0.05);">
+                    <h3 style="color:var(--neon-green); margin-bottom:1rem;">[ IN SCOPE ]</h3>
+                    <p>- Input tokenization <span class="cite"></span></p>
+                    <p>- Configurable Whitelists <span class="cite"></span></p>
+                    <p>- Background Job Tracking <span class="cite"></span></p>
+                    <p>- Persistent logging <span class="cite"></span></p>
+                </div>
+                <div
+                    style="flex:1 1 300px; border: 1px solid var(--neon-red); padding: 1.5rem; background: rgba(255,0,60,0.05);">
+                    <h3 style="color:var(--neon-red); margin-bottom:1rem;">[ OUT OF SCOPE ]</h3>
+                    <p>- Shell scripting (loops/if-else) <span class="cite"></span></p>
+                    <p>- Environment variables ($PATH) <span class="cite"></span></p>
+                    <p>- Complex pipe chains <span class="cite"></span></p>
+                    <p>- Full POSIX compliance <span class="cite"></span></p>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide">
+            <h2>MEMORY ARCHITECTURE (STRUCTS)</h2>
+            <p>Data mapping designed for ACL enforcement and Audit Logging <span class="cite"></span>:</p>
+            <div class="c-structs">
+                <div class="code-box" style="border-top-color: var(--neon-purple);">
+                    <span class="kw">typedef struct</span> {<br>
+                    &nbsp;&nbsp;<span class="ty">char</span> name[<span class="st">32</span>];<br>
+                    &nbsp;&nbsp;<span class="ty">char</span> *cmds[<span class="st">MAX</span>];<br>
+                    } <span class="ty">Role</span>; <span class="cite"></span>
+                </div>
+                <div class="code-box" style="border-top-color: var(--neon-blue);">
+                    <span class="kw">typedef struct</span> {<br>
+                    &nbsp;&nbsp;<span class="ty">pid_t</span> pid;<br>
+                    &nbsp;&nbsp;<span class="ty">char</span> cmd[<span class="st">256</span>];<br>
+                    &nbsp;&nbsp;<span class="ty">int</span> active;<br>
+                    } <span class="ty">Job</span>; <span class="cite"></span>
+                </div>
+                <div class="code-box" style="border-top-color: var(--neon-green);">
+                    <span class="kw">typedef struct</span> {<br>
+                    &nbsp;&nbsp;<span class="ty">char</span> time[<span class="st">32</span>];<br>
+                    &nbsp;&nbsp;<span class="ty">char</span> role[<span class="st">32</span>];<br>
+                    &nbsp;&nbsp;<span class="ty">int</span> allowed;<br>
+                    } <span class="ty">LogEntry</span>; <span class="cite"></span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide">
+            <h2>PIPELINE ARCHITECTURE</h2>
+            <p>Applying the OS principle of <span class="highlight">Separation of Responsibilities</span> <span
+                    class="cite"></span>.</p>
+            <ul>
+                <li><span class="warning">main.c :</span> Coordinates modules and runs the read-eval-print loop <span
+                        class="cite"></span>.</li>
+                <li><span class="warning">parser.c :</span> Tokenizes input into an argument array without checking
+                    permissions <span class="cite"></span>.</li>
+                <li><span class="warning">acl.c :</span> The Policy Engine. Manages whitelist tables and validates
+                    commands <span class="cite"></span>.</li>
+                <li><span class="warning">logger.c :</span> Writes structured log entries (timestamp, role, command,
+                    result) <span class="cite"></span>.</li>
+                <li><span class="warning">executor.c :</span> Process Engine. Never checks ACL; blindly executes if
+                    passed <span class="cite"></span>.</li>
+            </ul>
+        </section>
+
+        <section class="slide">
+            <h2>ASYNCHRONOUS EXECUTION (&)</h2>
+            <p>Handling background processes to maintain terminal interactivity <span class="cite"></span>.</p>
+            <ul>
+                <li><span class="highlight">DETECTION:</span> The parser detects the trailing <code>&</code> operator
+                    during tokenization <span class="cite"></span>.</li>
+                <li><span class="highlight">NON-BLOCKING PARENT:</span> If background execution is requested, the parent
+                    process skips the immediate <code>waitpid()</code> call <span class="cite"></span>.</li>
+                <li><span class="highlight">JOB TRACKING:</span> The child process PID is appended to the active jobs
+                    array, verifiable via the built-in <code>jobs</code> command <span class="cite"></span>.</li>
+            </ul>
+        </section>
+
+        <section class="slide">
+            <h2>POSIX SYSTEM CALLS</h2>
+            <p>Direct interfacing with the OS kernel <span class="cite"></span>:</p>
+            <ul>
+                <li><span class="highlight">fork() & execvp() :</span> The backbone of process creation. The shell
+                    duplicates itself, replacing the child image with the authorized binary <span class="cite"></span>.
+                </li>
+                <li><span class="highlight">waitpid() :</span> Blocks the parent shell until the foreground child
+                    terminates to prevent zombie processes <span class="cite"></span>.</li>
+                <li><span class="highlight">time() & fopen() :</span> Constructs immutable temporal records for the
+                    persistent audit file <span class="cite"></span>.</li>
+            </ul>
+        </section>
+
+        <section class="slide">
+            <h2>AUDIT LOG OUTPUTS</h2>
+            <p>Intercepting unauthorized processes <i>before</i> memory is allocated <span class="cite"></span>.</p>
+            <div
+                style="background: #000; border-left: 4px solid var(--neon-red); padding: 1.5rem; font-family: monospace; font-size: 1.1rem; color: #0f0; margin-top: 1rem;">
+                [secshell]$ ls -la<br>
+                <span style="color:#888">2026-03-26 14:02:11 | ROLE: user | CMD: ls -la | STATUS: ALLOWED <span
+                        class="cite"></span></span><br><br>
+
+                [secshell]$ shutdown now<br>
+                <span style="color:#888">2026-03-26 14:02:35 | ROLE: user | CMD: shutdown now | STATUS: <span
+                        style="color:red">BLOCKED <span class="cite"></span></span></span><br>
+                <span style="color:red">[BLOCKED] Command 'shutdown' is not permitted for role 'user'. <span
+                        class="cite"></span></span><br>
+            </div>
+        </section>
+
+        <section class="slide">
+            <h2>DESIGN TRADE-OFFS</h2>
+            <ul>
+                <li><span class="warning">C vs. Python :</span> C provides direct access to POSIX system calls without
+                    abstraction layers, making the relationship between shell code and OS behavior explicit <span
+                        class="cite"></span>.</li>
+                <li><span class="warning">Static Arrays vs. Config Files :</span> Whitelists are statically compiled in
+                    Phase 2 to ensure correctness during early development <span class="cite"></span>.</li>
+                <li><span class="warning">Local File vs. Syslog :</span> Audit logs are written locally (audit.log) to
+                    maintain project portability instead of hooking into system daemons <span class="cite"></span>.</li>
+            </ul>
+        </section>
+
+        <section class="slide" style="text-align: center;">
+            <h1 style="color: var(--neon-green); font-size: 4rem; margin-bottom: 2rem;">SYSTEM SECURE</h1>
+            <p style="font-size: 1.5rem; max-width: 800px; margin: 0 auto; color: #888;">
+                By implementing command whitelisting, role-based access control, and audit logging in C, the project
+                bridges the gap between theoretical OS principles and practical system-level programming <span
+                    class="cite"></span>.
+            </p>
+            <br><br>
+            <h3 style="color: var(--neon-blue);">[ TERMINATE CONNECTION // Q&A ]</h3>
+        </section>
+
+    </div>
+
+    <div id="controls">
+        <div class="btn-group">
+            <button class="btn btn-export" onclick="exportPresentation('pdf')">EXPORT PDF</button>
+            <button class="btn btn-export" onclick="exportPresentation('pptx')">EXPORT PPTX</button>
+        </div>
+
+        <div class="btn-group">
+            <button id="prevBtn" class="btn" onclick="prevSlide()">&#9664; PREV</button>
+            <div id="progress">01 // 11</div>
+            <button id="nextBtn" class="btn" onclick="nextSlide()">NEXT &#9654;</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Boot Sequence Logic ---
+        const bootTextLines = [
+            "INITIATING BOOT SEQUENCE...",
+            "LOADING KERNEL MODULES... OK",
+            "MOUNTING VFS... OK",
+            "INITIALIZING ADA UNIVERSITY MAINFRAME CONNECTION...",
+            "VERIFYING PROJECT PHASE 2 STATUS...",
+            "AUTHENTICATING OPERATIVES...",
+            "ACCESS GRANTED.",
+            "LAUNCHING SEC-SHELL PRESENTATION PROTOCOL..."
+        ];
+
+        const bootContainer = document.getElementById('boot-text');
+        const bootScreen = document.getElementById('boot-screen');
+        const presentation = document.getElementById('presentation-container');
+        let bootActive = true;
+        let bootTimeout;
+
+        function endBootSequence() {
+            if (!bootActive) return;
+            bootActive = false;
+            clearTimeout(bootTimeout);
+            bootScreen.style.opacity = '0';
+            setTimeout(() => {
+                bootScreen.style.display = 'none'; presentation.style.opacity = '1';
+            }, 800);
+        }
+
+        bootScreen.addEventListener('click', endBootSequence);
+        document.addEventListener('keydown', (e) => {
+            if (bootActive && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) endBootSequence();
+        });
+
+        let lineIndex = 0;
+        function typeBootSequence() {
+            if (!bootActive) return;
+            if (lineIndex < bootTextLines.length) {
+                const p = document.createElement('div');
+                p.style.marginBottom = "0.5rem"; p.innerText = "> " + bootTextLines[lineIndex];
+                bootContainer.appendChild(p); lineIndex++;
+                bootTimeout = setTimeout(typeBootSequence, Math.random() * 100 + 50);
+            } else {
+                bootTimeout = setTimeout(endBootSequence, 600);
+            }
+        }
+
+        window.onload = () => { bootTimeout = setTimeout(typeBootSequence, 300); };
+
+        // --- Slide Navigation Logic ---
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const progressText = document.getElementById('progress');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        function updateDeck() {
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active', 'prev');
+                void slide.offsetWidth; // Force Reflow
+                if (index === currentSlide) slide.classList.add('active');
+                else if (index < currentSlide) slide.classList.add('prev');
+            });
+            progressText.innerText = `${(currentSlide + 1).toString().padStart(2, '0')} // ${slides.length}`;
+            prevBtn.disabled = currentSlide === 0;
+            nextBtn.disabled = currentSlide === slides.length - 1;
+        }
+
+        function nextSlide() { if (currentSlide < slides.length - 1) { currentSlide++; updateDeck(); } }
+        function prevSlide() { if (currentSlide > 0) { currentSlide--; updateDeck(); } }
+
+        document.addEventListener('keydown', (e) => {
+            if (bootActive) return;
+            if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+            else if (e.key === 'ArrowLeft') prevSlide();
+        });
+
+        updateDeck();
+
+        // --- Cyber Particle Background ---
+        const canvas = document.getElementById('particles');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+        let particlesArray = [];
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2;
+                this.speedX = (Math.random() * 1) - 0.5; this.speedY = (Math.random() * 1) - 0.5;
+            }
+            update() {
+                this.x += this.speedX; this.y += this.speedY;
+                if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+            }
+            draw() {
+                ctx.fillStyle = 'rgba(0, 243, 255, 0.5)';
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            particlesArray = [];
+            const particleCount = Math.min(60, Math.floor(window.innerWidth / 25));
+            for (let i = 0; i < particleCount; i++) particlesArray.push(new Particle());
+        }
+
+        function drawLines() {
+            for (let a = 0; a < particlesArray.length; a++) {
+                for (let b = a + 1; b < particlesArray.length; b++) {
+                    let dx = particlesArray[a].x - particlesArray[b].x;
+                    let dy = particlesArray[a].y - particlesArray[b].y;
+                    let distance = (dx * dx) + (dy * dy);
+                    if (distance < 20000) {
+                        ctx.strokeStyle = `rgba(0, 243, 255, ${0.8 - distance / 20000})`;
+                        ctx.lineWidth = 0.5; ctx.beginPath();
+                        ctx.moveTo(particlesArray[a].x, particlesArray[a].y);
+                        ctx.lineTo(particlesArray[b].x, particlesArray[b].y); ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particlesArray.forEach(p => { p.update(); p.draw(); });
+            drawLines(); requestAnimationFrame(animateParticles);
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight; initParticles();
+        });
+
+        initParticles(); animateParticles();
+
+        // --- EXPORT LOGIC (BULLETPROOF CLONE METHOD) ---
+        async function exportPresentation(type) {
+            const overlay = document.getElementById('exportOverlay');
+            overlay.style.display = 'flex';
+
+            // Give the browser 100ms to paint the loading screen before locking the thread
+            await new Promise(r => setTimeout(r, 100));
+
+            try {
+                const { jsPDF } = window.jspdf;
+
+                // Standardize resolution for the export (1280x720 is reliable and fast)
+                const exportWidth = 1280;
+                const exportHeight = 720;
+
+                const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [exportWidth, exportHeight] });
+
+                // FIXED: Capitalized PptxGenJS
+                const pptx = new PptxGenJS();
+                pptx.layout = 'LAYOUT_16x9';
+
+                // CRITICAL FIX 1: Inject styles to force clones to be flat, visible, and fully rendered
+                const styleOverride = document.createElement('style');
+                styleOverride.innerHTML = `
+                    .clone-slide, .clone-slide * { 
+                        transition: none !important; 
+                        transform: none !important; 
+                        animation: none !important; 
+                        opacity: 1 !important; /* Fixes invisible list items */
+                    }
+                    .clone-slide {
+                        position: fixed !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: ${exportWidth}px !important;
+                        height: ${exportHeight}px !important;
+                        background: #050a0f !important;
+                        backdrop-filter: none !important;
+                        z-index: -9999 !important; /* Hide behind the loading screen */
+                        display: flex !important;
+                        pointer-events: none !important;
+                    }
+                `;
+                document.head.appendChild(styleOverride);
+
+                for (let i = 0; i < slides.length; i++) {
+                    // CRITICAL FIX 2: Clone the slide so we don't break the live 3D DOM
+                    const clone = slides[i].cloneNode(true);
+                    clone.classList.add('clone-slide');
+
+                    document.body.appendChild(clone);
+
+                    // Let DOM process the new element and load fonts into it
+                    await new Promise(r => setTimeout(r, 150));
+
+                    // CRITICAL FIX 3: useCORS prevents Google Fonts from crashing the canvas
+                    const slideCanvas = await html2canvas(clone, {
+                        scale: 1.5, // 1.5x scaling looks sharp but won't crash browser memory
+                        width: exportWidth,
+                        height: exportHeight,
+                        backgroundColor: '#050a0f',
+                        useCORS: true,
+                        logging: false
+                    });
+
+                    // Destroy the clone after taking the snapshot
+                    document.body.removeChild(clone);
+
+                    // Compress to JPEG to keep file sizes manageable
+                    const imgData = slideCanvas.toDataURL('image/jpeg', 0.85);
+
+                    if (type === 'pdf') {
+                        if (i > 0) pdf.addPage();
+                        pdf.addImage(imgData, 'JPEG', 0, 0, exportWidth, exportHeight);
+                    } else if (type === 'pptx') {
+                        let pptSlide = pptx.addSlide();
+                        pptSlide.background = { color: '050a0f' };
+                        pptSlide.addImage({ data: imgData, x: 0, y: 0, w: '100%', h: '100%' });
+                    }
+                }
+
+                // Cleanup our temporary styles
+                document.head.removeChild(styleOverride);
+                overlay.style.display = 'none';
+
+                // Download the compiled file
+                if (type === 'pdf') {
+                    pdf.save('SEC-SHELL_Presentation.pdf');
+                } else if (type === 'pptx') {
+                    await pptx.writeFile({ fileName: 'SEC-SHELL_Presentation.pptx' });
+                }
+
+            } catch (error) {
+                console.error("Export Error: ", error);
+                alert("Export failed: " + error.message);
+
+                // Failsafe: clean up any stuck clones if it crashes halfway
+                const existingClones = document.querySelectorAll('.clone-slide');
+                existingClones.forEach(c => c.remove());
+
+                overlay.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+
+</html>
